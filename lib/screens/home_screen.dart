@@ -62,7 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
 						return Card(
 							margin: const EdgeInsets.all(8),
 							child: ListTile(
-								leading: const Icon(Icons.lock, color: Colors.red),
+								leading: const Icon(Icons.lock, color: Colors.deepPurple),
 								title: Text(entry.site),
 								subtitle: Column(
 									crossAxisAlignment: CrossAxisAlignment.start,
@@ -75,12 +75,9 @@ class _HomeScreenState extends State<HomeScreen> {
 									mainAxisSize: MainAxisSize.min,
 									children: [
 										IconButton(
-											icon: const Icon(Icons.edit, color: Colors.orange),
+											icon: const Icon(Icons.edit, color: Colors.black),
 											onPressed: () {
-												ScaffoldMessenger.of(context).showSnackBar(
-													SnackBar(content: Text('Edit (soon)')),
-												);
-												//_showEditDialog(entry);
+												_showEditDialog(entry);
 											},
 										),
 										IconButton(
@@ -161,5 +158,57 @@ class _HomeScreenState extends State<HomeScreen> {
 		);
 	}
 
-	//void _showEditDialog
+	void _showEditDialog(PasswordEntry originalEntry) {
+		final siteController = TextEditingController(text: originalEntry.site);
+		final usernameController = TextEditingController(text: originalEntry.username);
+		final passwordController = TextEditingController(text: originalEntry.password);
+
+		showDialog(
+			context: context,
+			builder: (context) => AlertDialog(
+				title: const Text('Edit password'),
+				content: Column(
+					mainAxisSize: MainAxisSize.min,
+					children: [
+						TextField(
+							controller: siteController,
+							decoration: const InputDecoration(labelText: 'Site'),
+						),
+						TextField(
+							controller: usernameController,
+							decoration: const InputDecoration(labelText: 'Login')
+						),
+						TextField(
+							controller: passwordController,
+							decoration: const InputDecoration(labelText: 'Password'),
+							obscureText: true,
+						),
+					],
+				),
+				actions: [
+					TextButton(
+						onPressed: () => Navigator.pop(context),
+						child: const Text('Cancel')
+					),
+					TextButton(
+						onPressed: () async {
+							if (siteController.text.isNotEmpty && usernameController.text.isNotEmpty) {
+								final entry = PasswordEntry.fake(
+									id: originalEntry.id,
+									site: siteController.text,
+									username: usernameController.text,
+									password: passwordController.text,
+									createdAt: originalEntry.createdAt,
+								);
+								await _db.updatePassword(entry);
+								_loadPasswords();
+								Navigator.pop(context);
+							}
+						},
+						child: const Text('Save')
+					),
+				],
+			),
+		);
+	} //
 }
