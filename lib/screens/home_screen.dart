@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-// import '../services/database_service.dart'; // i`ll add it later
+import '../models/password_entry.dart';
+import '../services/database_service.dart';
 
 class HomeScreen extends StatefulWidget {
 	@override
@@ -8,8 +9,22 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-	// its fake list for test, real db i`ll add later 
-	final List<String> _passwords = ['Password_1(test)', 'Password_2(test)'];
+	final DatabaseService _db = DatabaseService();
+	List<PasswordEntry> _passwords = [];
+
+	@override
+	void initState() {
+		super.initState();
+		_loadPasswords();
+	}
+
+	// Load passwords from db
+	Future<void> _loadPasswords() async {
+		final passwords = await _db.getAllPasswords();
+		setState(() {
+			_passwords = passwords;
+		});
+	}
 
 	@override
 	Widget build(BuildContext context) {
@@ -43,38 +58,108 @@ class _HomeScreenState extends State<HomeScreen> {
 				: ListView.builder(
 					itemCount: _passwords.length,
 					itemBuilder: (context, index) {
+						final entry = _passwords[index];
 						return Card(
 							margin: const EdgeInsets.all(8),
 							child: ListTile(
 								leading: const Icon(Icons.lock, color: Colors.red),
-								title: Text(_passwords[index]),
-								subtitle: const Text('Site: example.com | login: user'),
-								trailing: IconButton(
-									icon: const Icon(Icons.edit),
-									onPressed: () {
-										ScaffoldMessenger.of(context).showSnackBar(
-											SnackBar(content: Text('Edit ${_passwords[index]} (soon)')),
-										);
-									},
+								title: Text(entry.site),
+								subtitle: Column(
+									crossAxisAlignment: CrossAxisAlignment.start,
+									children: [
+										Text('Login: ${entry.username}'),
+										Text('Date: ${entry.createdAt.toLocal().toString().split(' ')[0]}'), // Only date
+									],
+								),
+								trailing: Row(
+									mainAxisSize: MainAxisSize.min,
+									children: [
+										IconButton(
+											icon: const Icon(Icons.edit, color: Colors.orange),
+											onPressed: () {
+												ScaffoldMessenger.of(context).showSnackBar(
+													SnackBar(content: Text('Edit (soon)')),
+												);
+												//_showEditDialog(entry);
+											},
+										),
+										IconButton(
+											icon: const Icon(Icons.delete, color: Colors.red),
+											onPressed: () async {
+												await _db.deletePassword(entry.id);
+												_loadPasswords(); // reload list
+												ScaffoldMessenger.of(context).showSnackBar(
+													const SnackBar(content: Text('Password deleted!')),
+												);
+											},
+										),
+									],
 								),
 							),
 						);
 					},
 				),
 			floatingActionButton: FloatingActionButton(
-				onPressed: () {
-					setState(() {
-						_passwords.add('New password ${DateTime.now().second}');
-					});
-					ScaffoldMessenger.of(context).showSnackBar(
-						const SnackBar(content: Text('Password added! (no :D)')),
-					);
-				},
+				onPressed: () => _showAddDialog(),
 				child: const Icon(Icons.add),
 			),
-		); // Scafold
+		);
 	}
-	//void _addPassword(BuildContext context) {
-	//	ToDo: Logic of adding a password(form)
-	//}
+
+	void _showAddDialog() {
+		final siteController = TextEditingController();
+		final usernameController = TextEditingController();
+		final passwordController = TextEditingController();
+
+		showDialog(
+			context: context,
+			builder: (context) => AlertDialog(
+				title: const Text('Add password'),
+				content: Column(
+					mainAxisSize: MainAxisSize.min,
+					children: [
+						TextField(
+							controller: siteController,
+							decoration: const InputDecoration(labelText: 'Site'),
+						),
+						TextField(
+							controller: usernameController,
+							decoration: const InputDecoration(labelText: 'Login')
+						),
+						TextField(
+							controller: passwordController,
+							decoration: const InputDecoration(labelText: 'Password'),
+							obscureText: true,
+						),
+					],
+				),
+				actions: [
+					TextButton(
+						onPressed: () => Navigator.pop(context),
+						child: const Text('Cancel')
+					),
+					TextButton(
+						onPressed: () async {
+							if (siteController.text.isNotEmpty && usernameController.text.isNotEmpty) {
+								final entry = PasswordEntry.fake(
+									site: siteController.text,
+									username: usernameController.text,
+									password: passwordController.text,
+								);
+								await _db.addPassword(entry);
+								_loadPasswords();
+								Navigator.pop(context);
+								ScaffoldMessenger.of(context).showSnackBar(
+									const SnackBar(content: Text('Password added!')),
+								);
+							}
+						},
+						child: const Text('Add')
+					),
+				],
+			),
+		);
+	}
+
+	//void _showEditDialog
 }
