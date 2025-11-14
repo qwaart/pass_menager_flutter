@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/password_entry.dart';
 import '../services/database_service.dart';
+import '../services/password_generator_service.dart';
 
 class HomeScreen extends StatefulWidget {
 	@override
@@ -108,52 +109,74 @@ class _HomeScreenState extends State<HomeScreen> {
 		final usernameController = TextEditingController();
 		final passwordController = TextEditingController();
 
+		bool obscurePassword = true;
+
+		final generator = PasswordGeneratorService();
+
 		showDialog(
 			context: context,
-			builder: (context) => AlertDialog(
-				title: const Text('Add password'),
-				content: Column(
-					mainAxisSize: MainAxisSize.min,
-					children: [
-						TextField(
-							controller: siteController,
-							decoration: const InputDecoration(labelText: 'Site'),
+			builder: (context) => StatefulBuilder(
+				builder: (context, setDialogState) => AlertDialog(
+					title: const Text('Add password'),
+					content: Column(
+						mainAxisSize: MainAxisSize.min,
+						children: [
+							TextField(
+								controller: siteController,
+								decoration: const InputDecoration(labelText: 'Site'),
+							),
+							TextField(
+								controller: usernameController,
+								decoration: const InputDecoration(labelText: 'Login')
+							),
+							TextField(
+								controller: passwordController,
+								obscureText: obscurePassword,
+								decoration: InputDecoration(
+									labelText: 'Password',
+									suffixIcon: IconButton(
+										icon: Icon(obscurePassword ? Icons.visibility : Icons.visibility_off),
+										onPressed: () => setDialogState(() => obscurePassword = !obscurePassword),
+									),
+								),
+							),
+							const SizedBox(height: 8),
+							TextButton.icon(
+								onPressed: () {
+									final generated = generator.generateStrongPassword();
+									passwordController.text = generated;
+									setDialogState(() {}); //update UI
+								},
+								icon: const Icon(Icons.autorenew, size: 16),
+								label: const Text('Generate strong password'),
+							),
+						],
+					),
+					actions: [
+						TextButton(
+							onPressed: () => Navigator.pop(context),
+							child: const Text('Cancel')
 						),
-						TextField(
-							controller: usernameController,
-							decoration: const InputDecoration(labelText: 'Login')
-						),
-						TextField(
-							controller: passwordController,
-							decoration: const InputDecoration(labelText: 'Password'),
-							obscureText: true,
+						TextButton(
+							onPressed: () async {
+								if (siteController.text.isNotEmpty && usernameController.text.isNotEmpty) {
+									final entry = PasswordEntry.fake(
+										site: siteController.text,
+										username: usernameController.text,
+										password: passwordController.text,
+									);
+									await _db.addPassword(entry);
+									_loadPasswords();
+									Navigator.pop(context);
+									ScaffoldMessenger.of(context).showSnackBar(
+										const SnackBar(content: Text('Password added!')),
+									);
+								}
+							},
+							child: const Text('Add')
 						),
 					],
 				),
-				actions: [
-					TextButton(
-						onPressed: () => Navigator.pop(context),
-						child: const Text('Cancel')
-					),
-					TextButton(
-						onPressed: () async {
-							if (siteController.text.isNotEmpty && usernameController.text.isNotEmpty) {
-								final entry = PasswordEntry.fake(
-									site: siteController.text,
-									username: usernameController.text,
-									password: passwordController.text,
-								);
-								await _db.addPassword(entry);
-								_loadPasswords();
-								Navigator.pop(context);
-								ScaffoldMessenger.of(context).showSnackBar(
-									const SnackBar(content: Text('Password added!')),
-								);
-							}
-						},
-						child: const Text('Add')
-					),
-				],
 			),
 		);
 	}
@@ -164,6 +187,8 @@ class _HomeScreenState extends State<HomeScreen> {
 		final passwordController = TextEditingController(text: originalEntry.password);
 
 		bool obscurePassword = true;
+
+		final generator = PasswordGeneratorService();
 
 		showDialog(
 			context: context,
@@ -196,6 +221,16 @@ class _HomeScreenState extends State<HomeScreen> {
 									),
 								),
 							),
+							const SizedBox(height: 8),
+							TextButton.icon(
+								onPressed: () {
+									final generated = generator.generateStrongPassword();
+									passwordController.text = generated;
+									setDialogState(() {});
+								},
+								icon: const Icon(Icons.autorenew, size: 16),
+								label: const Text('Generate strong password')
+							)
 						],
 					),
 					actions: [
