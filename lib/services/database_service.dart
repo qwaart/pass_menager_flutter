@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/password_entry.dart';
+import 'encryption_service.dart';
 
 class DatabaseService {
 	static final DatabaseService _instanse = DatabaseService._internal();
@@ -17,13 +18,12 @@ class DatabaseService {
 	}
 
 	Future<Database> _initDatabase() async {
-		// path to db
-		String path = join(await getDatabasesPath(), 'password.db');
-
+		String path = join(await getDatabasesPath(), 'passwords.db');
 		return await openDatabase(
 			path,
-			version: 1,
+			version: 2,
 			onCreate: _onCreate,
+			onUpgrade: _onUpgrade,
 		);
 	}
 
@@ -31,19 +31,35 @@ class DatabaseService {
 	Future<void> _onCreate(Database db, int version) async {
 		await db.execute('''
 			CREATE TABLE passwords (
-				id TEXT PRIMARY KEY,
-				site TEXT NOT NULL,
-				username TEXT NOT NULL,
-				password TEXT NOT NULL,
-				createdAt TEXT NOT NULL
-			)
+		      id TEXT PRIMARY KEY,
+		      site TEXT NOT NULL,
+		      username TEXT NOT NULL,
+		      encrypted_password TEXT NOT NULL,
+		      createdAt TEXT NOT NULL
+		   )
 		''');
 	}
 
+	Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+		if (oldVersion < 2) {
+			await db.execute('ALERT TABLE passwords ADD COLUMN encrypted_password TEXT');
+		}
+	}
+
 	// Addin a password
-	Future<int> addPassword(PasswordEntry entry) async {
+	Future<int> addPassword(PasswordEntry entry, String plainPassword) async {
+		final encryption = EncryptionService();
+		final encrypted = await encryption.encryptPassword(plainPassword);
+		final encryptedEntry = PasswordEntry(
+			id: entry.id,
+			site: entry.site,
+			username: entry.username,
+			encryptedPassword: encrypted,
+			createdAt: entry.createdAt,
+		);
+
 		final db = await database;
-		return await db.insert('passwords', entry.toMap());
+		return await db.insert('passwords', encryptedEntry.toMap());
 	}
 
 	// get all passwords
@@ -54,14 +70,23 @@ class DatabaseService {
 	}
 
 	// Update password (by ID)
-	Future<int> updatePassword(PasswordEntry entry) async {
-		final db = await database;
-		return await db.update(
-			'passwords',
-			entry.toMap(),
-			where: 'id = ?',
-			whereArgs: [entry.id],
-		);
+	Future<int> updatePassword(PasswordEntry entry, String plainPassword) async {
+		final encryption = EncryptionService();
+	   	final encrypted = await encryption.encryptPassword(plainPassword);
+	   	final encryptedEntry = PasswordEntry(
+		   id: entry.id,
+		   site: entry.site,
+		   username: entry.username,
+		   encryptedPassword: encrypted,
+		   createdAt: entry.createdAt,
+	  );
+	  final db = await database;
+	  return await db.update(
+		   'passwords',
+		   encryptedEntry.toMap(),
+		   where: 'id = ?',
+		   whereArgs: [entry.id],
+	  	);
 	}
 
 	// Delete password (by ID)

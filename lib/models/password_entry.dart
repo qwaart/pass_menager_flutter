@@ -4,14 +4,14 @@ class PasswordEntry {
 	final String id;
 	final String site;
 	final String username;
-	final String password;
+	final String encryptedPassword;
 	final DateTime createdAt;
 
 	PasswordEntry({
 		required this.id,
 		required this.site,
 		required this.username,
-		required this.password,
+		required this.encryptedPassword,
 		required this.createdAt,
 	});
 
@@ -19,11 +19,12 @@ class PasswordEntry {
 	PasswordEntry.fake({
 		required this.site,
 		required this.username,
-		required this.password,
+		required String plainPassword,
 		String? id,
 		DateTime? createdAt,
 	})	: id = id ?? const Uuid().v4(), 
-		createdAt = createdAt ?? DateTime.now();
+		createdAt = createdAt ?? DateTime.now(),
+		encryptedPassword = ''; // encrypting in service
 
 	// morph to Map for db (sqflite)
 	Map<String, dynamic> toMap() {
@@ -31,7 +32,7 @@ class PasswordEntry {
 			'id': id,
 			'site': site,
 			'username': username,
-			'password': password, // i`ll encrypt it later
+			'encrypted_password': encryptedPassword,
 			'createdAt': createdAt.toIso8601String(),
 		};
 	}
@@ -42,7 +43,7 @@ class PasswordEntry {
 			id: map['id'],
 			site: map['site'],
 			username: map['username'],
-			password: map['password'],
+			encryptedPassword: map['encrypted_password'],
 			createdAt: DateTime.parse(map['createdAt']),
 		);
 	}

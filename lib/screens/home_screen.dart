@@ -1,21 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/password_entry.dart';
 import '../services/database_service.dart';
 import '../services/password_generator_service.dart';
+import '../services/encryption_service.dart';
 
 class HomeScreen extends StatefulWidget {
 	@override
-
 	_HomeScreenState createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
 	final DatabaseService _db = DatabaseService();
+	final EncryptionService _encryption = EncryptionService();
+	final PasswordGeneratorService _generator = PasswordGeneratorService();
 	List<PasswordEntry> _passwords = [];
 
 	@override
 	void initState() {
 		super.initState();
+		_encryption.init();
 		_loadPasswords();
 	}
 
@@ -31,7 +35,7 @@ class _HomeScreenState extends State<HomeScreen> {
 	Widget build(BuildContext context) {
 		return Scaffold(
 			appBar: AppBar(
-				title: Text('Passwords'),
+				title: const Text('Passwords'),
 				backgroundColor: Theme.of(context).colorScheme.inversePrimary,
 				actions: [
 					IconButton(
@@ -69,9 +73,34 @@ class _HomeScreenState extends State<HomeScreen> {
 									crossAxisAlignment: CrossAxisAlignment.start,
 									children: [
 										Text('Login: ${entry.username}'),
+										const Text('Password: ***'),
 										Text('Date: ${entry.createdAt.toLocal().toString().split(' ')[0]}'), // Only date
 									],
 								),
+								onTap: () async {
+									try {
+										final decrypted = await _encryption.decryptPassword(entry.encryptedPassword);
+
+										final scaffoldContext = ScaffoldMessenger.of(context);
+
+										scaffoldContext.showSnackBar(
+											SnackBar(
+												content: Text('Password for ${entry.site}: $decrypted'),
+												duration: const Duration(seconds: 5),
+												action: SnackBarAction(
+													label: 'Copy',
+													onPressed: () async {
+														await Clipboard.setData(ClipboardData(text: decrypted));
+													},
+												),
+											),
+										);
+									} catch (e) {
+										ScaffoldMessenger.of(context).showSnackBar(
+											const SnackBar(content: Text('Error decrypting')),
+										);
+									}
+								},
 								trailing: Row(
 									mainAxisSize: MainAxisSize.min,
 									children: [
@@ -91,9 +120,12 @@ class _HomeScreenState extends State<HomeScreen> {
 												);
 											},
 										),
+										//IconButton(
+										//	icon: const Icon(Icons.copy, color: Colors.black)
+										//)
 									],
 								),
-							),
+							), //
 						);
 					},
 				),
@@ -111,7 +143,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
 		bool obscurePassword = true;
 
-		final generator = PasswordGeneratorService();
+		//final generator = PasswordGeneratorService();
 
 		showDialog(
 			context: context,
@@ -143,7 +175,7 @@ class _HomeScreenState extends State<HomeScreen> {
 							const SizedBox(height: 8),
 							TextButton.icon(
 								onPressed: () {
-									final generated = generator.generateStrongPassword();
+									final generated = _generator.generateStrongPassword();
 									passwordController.text = generated;
 									setDialogState(() {}); //update UI
 								},
@@ -159,13 +191,14 @@ class _HomeScreenState extends State<HomeScreen> {
 						),
 						TextButton(
 							onPressed: () async {
+								final plainPassword = passwordController.text.isNotEmpty ? passwordController.text : 'default';
 								if (siteController.text.isNotEmpty && usernameController.text.isNotEmpty) {
 									final entry = PasswordEntry.fake(
 										site: siteController.text,
 										username: usernameController.text,
-										password: passwordController.text,
+										plainPassword: plainPassword,
 									);
-									await _db.addPassword(entry);
+									await _db.addPassword(entry, plainPassword);
 									_loadPasswords();
 									Navigator.pop(context);
 									ScaffoldMessenger.of(context).showSnackBar(
@@ -184,11 +217,22 @@ class _HomeScreenState extends State<HomeScreen> {
 	void _showEditDialog(PasswordEntry originalEntry) {
 		final siteController = TextEditingController(text: originalEntry.site);
 		final usernameController = TextEditingController(text: originalEntry.username);
-		final passwordController = TextEditingController(text: originalEntry.password);
+		final passwordController = TextEditingController();
 
 		bool obscurePassword = true;
 
-		final generator = PasswordGeneratorService();
+		//final generator = PasswordGeneratorService();
+
+		// decrypt and entry password async
+		WidgetsBinding.instance.addPostFrameCallback((_) async {
+			try {
+				final decrypted = await _encryption.decryptPassword(originalEntry.encryptedPassword);
+				passwordController.text = decrypted;
+			} catch (e) {
+				// empty
+			}
+			setState(() {});
+		});
 
 		showDialog(
 			context: context,
@@ -224,13 +268,13 @@ class _HomeScreenState extends State<HomeScreen> {
 							const SizedBox(height: 8),
 							TextButton.icon(
 								onPressed: () {
-									final generated = generator.generateStrongPassword();
+									final generated = _generator.generateStrongPassword();
 									passwordController.text = generated;
 									setDialogState(() {});
 								},
 								icon: const Icon(Icons.autorenew, size: 16),
 								label: const Text('Generate strong password')
-							)
+							),
 						],
 					),
 					actions: [
@@ -240,15 +284,16 @@ class _HomeScreenState extends State<HomeScreen> {
 						),
 						TextButton(
 							onPressed: () async {
+								final plainPassword = passwordController.text.isNotEmpty ? passwordController.text : 'default';
 								if (siteController.text.isNotEmpty && usernameController.text.isNotEmpty) {
-									final entry = PasswordEntry.fake(
+									final entry = PasswordEntry(
 										id: originalEntry.id,
 										site: siteController.text,
 										username: usernameController.text,
-										password: passwordController.text,
+										encryptedPassword: '',
 										createdAt: originalEntry.createdAt,
 									);
-									await _db.updatePassword(entry);
+									await _db.updatePassword(entry, plainPassword);
 									_loadPasswords();
 									Navigator.pop(context);
 									ScaffoldMessenger.of(context).showSnackBar(
