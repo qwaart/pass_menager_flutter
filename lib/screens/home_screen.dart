@@ -33,7 +33,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  // Password filtering
+  // Фільтрація паролів
   void _filterPasswords() {
     final query = _searchController.text.toLowerCase();
     setState(() {
@@ -48,8 +48,6 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     });
   }
-
-  // Loading passwords from the database
   Future<void> _loadPasswords() async {
     final passwords = await _db.getAllPasswords();
     setState(() {
@@ -72,7 +70,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 context,
                 MaterialPageRoute(builder: (context) => const SettingsScreen()),
               );
-              // We reset passwords after returning from settings
               _loadPasswords();
             },
           ),
@@ -80,7 +77,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Column(
         children: [
-          // Search
           if (_passwords.isNotEmpty)
             Padding(
               padding: const EdgeInsets.all(8.0),
@@ -103,7 +99,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-          // Password list
           Expanded(
             child: _passwords.isEmpty
                 ? const Center(
@@ -144,50 +139,27 @@ class _HomeScreenState extends State<HomeScreen> {
                                 entry.site,
                                 style: const TextStyle(
                                     fontWeight: FontWeight.bold),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis, // Обрізає довгі назви з ...
                               ),
                               subtitle: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('Login: ${entry.username}'),
+                                  Text(
+                                    'Login: ${entry.username}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                   const Text('Password: ●●●●●●●●'),
                                   Text(
-                                    'Дата: ${entry.createdAt.toLocal().toString().split(' ')[0]}',
+                                    'Date: ${entry.createdAt.toLocal().toString().split(' ')[0]}',
                                     style: TextStyle(
                                         fontSize: 12, color: Colors.grey[600]),
                                   ),
                                 ],
                               ),
                               onTap: () async {
-                                try {
-                                  final decrypted = await _encryption
-                                      .decryptPassword(entry.encryptedPassword);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                          'Password for ${entry.site}: $decrypted'),
-                                      duration: const Duration(seconds: 5),
-                                      action: SnackBarAction(
-                                        label: 'Copy',
-                                        onPressed: () async {
-                                          await Clipboard.setData(
-                                              ClipboardData(text: decrypted));
-                                          ScaffoldMessenger.of(context)
-                                              .showSnackBar(
-                                            const SnackBar(
-                                                content:
-                                                    Text('Copied!')),
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                  );
-                                } catch (e) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                        content: Text(
-                                            'Decryption error: $e')),
-                                  );
-                                }
+                                _showPasswordDetailsDialog(entry);
                               },
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -258,6 +230,211 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _showPasswordDetailsDialog(PasswordEntry entry) {
+    bool showPassword = false;
+    String? decryptedPassword;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          // Розшифровуємо пароль асинхронно
+          if (decryptedPassword == null && showPassword) {
+            _encryption.decryptPassword(entry.encryptedPassword).then((value) {
+              setDialogState(() {
+                decryptedPassword = value;
+              });
+            }).catchError((e) {
+              decryptedPassword = 'Decryption error';
+            });
+          }
+
+          return AlertDialog(
+            title: Row(
+              children: [
+                const Icon(Icons.info_outline, color: Colors.deepPurple),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    entry.site,
+                    style: const TextStyle(fontSize: 20),
+                  ),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildDetailRow(
+                    icon: Icons.language,
+                    label: 'Site',
+                    value: entry.site,
+                    onCopy: () {
+                      Clipboard.setData(ClipboardData(text: entry.site));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Website copied!')),
+                      );
+                    },
+                  ),
+                  const Divider(),
+                  _buildDetailRow(
+                    icon: Icons.person,
+                    label: 'login',
+                    value: entry.username,
+                    onCopy: () {
+                      Clipboard.setData(ClipboardData(text: entry.username));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Login copied!')),
+                      );
+                    },
+                  ),
+                  const Divider(),
+                  Row(
+                    children: [
+                      const Icon(Icons.lock, color: Colors.deepPurple, size: 20),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Пароль',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              showPassword
+                                  ? (decryptedPassword ?? 'Loading...')
+                                  : '●●●●●●●●●●',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          showPassword ? Icons.visibility_off : Icons.visibility,
+                          color: Colors.deepPurple,
+                        ),
+                        onPressed: () {
+                          setDialogState(() {
+                            showPassword = !showPassword;
+                            if (!showPassword) {
+                              decryptedPassword = null;
+                            }
+                          });
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.copy, color: Colors.green),
+                        onPressed: () async {
+                          String passwordToCopy = decryptedPassword ?? '';
+                          if (passwordToCopy.isEmpty) {
+                            try {
+                              passwordToCopy = await _encryption
+                                  .decryptPassword(entry.encryptedPassword);
+                            } catch (e) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text('Decryption error')),
+                              );
+                              return;
+                            }
+                          }
+                          await Clipboard.setData(
+                              ClipboardData(text: passwordToCopy));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text('Password copied!')),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                  const Divider(),
+                  
+                  // Дата створення
+                  _buildDetailRow(
+                    icon: Icons.calendar_today,
+                    label: 'Created',
+                    value: entry.createdAt.toLocal().toString().split('.')[0],
+                    showCopy: false,
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Close'),
+              ),
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+                  _showEditDialog(entry);
+                },
+                icon: const Icon(Icons.edit),
+                label: const Text('Edit'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildDetailRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    VoidCallback? onCopy,
+    bool showCopy = true,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, color: Colors.deepPurple, size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (showCopy && onCopy != null)
+          IconButton(
+            icon: const Icon(Icons.copy, color: Colors.green, size: 20),
+            onPressed: onCopy,
+          ),
+      ],
+    );
+  }
+
   void _showAddDialog() {
     final siteController = TextEditingController();
     final usernameController = TextEditingController();
@@ -285,7 +462,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 TextField(
                   controller: usernameController,
                   decoration: const InputDecoration(
-                    labelText: 'Login',
+                    labelText: 'login',
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -313,7 +490,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     setDialogState(() {});
                   },
                   icon: const Icon(Icons.autorenew, size: 16),
-                  label: const Text('Gnerate strong password'),
+                  label: const Text('Generate strong password'),
                 ),
               ],
             ),
@@ -321,7 +498,7 @@ class _HomeScreenState extends State<HomeScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cencel'),
+              child: const Text('Cancel'),
             ),
             TextButton(
               onPressed: () async {
@@ -363,13 +540,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
     bool obscurePassword = true;
 
-      // Password decryption
     _encryption
         .decryptPassword(originalEntry.encryptedPassword)
         .then((decrypted) {
       passwordController.text = decrypted;
     }).catchError((e) {
-      // Decryption error
     });
 
     showDialog(
@@ -431,7 +606,7 @@ class _HomeScreenState extends State<HomeScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cencel'),
+              child: const Text('Cancel'),
             ),
             TextButton(
               onPressed: () async {
