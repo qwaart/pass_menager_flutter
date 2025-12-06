@@ -6,7 +6,6 @@
 
 A simple and secure password manager built with Flutter.
 
-![Home Screen](screenshots/home_screen.png)
 
 ## ✨ Key Features
 
