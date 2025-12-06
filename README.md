@@ -1,7 +1,3 @@
-Готово! Ось повністю перекладений README англійською мовою.
-
----
-
 # 🔐 Password Manager
 
 A simple and secure password manager built with Flutter.
