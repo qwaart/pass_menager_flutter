@@ -230,7 +230,3 @@ CREATE TABLE passwords (
    > ^ <
 
 </div>
-
----
-
-Якщо хочеш — можу адаптувати README під GitHub Marketplace, зробити більш професійний стиль або додати бейджі.
