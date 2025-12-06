@@ -45,8 +45,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   provider: ^6.1.1
   uuid: ^4.2.1
-  shared_preferences: ^2.2.2  # Для збереження теми
-  crypto: ^3.0.3              # Для хешування PIN
+  shared_preferences: ^2.2.2
+  crypto: ^3.0.3              
   path_provider: ^2.1.1 
 
 dev_dependencies:
