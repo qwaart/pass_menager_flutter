@@ -67,7 +67,7 @@ A simple and secure password manager built with Flutter.
 1. **Clone the repository**
 
 ```bash
-git clone https://github.com/yourusername/password_manager.git
+git clone https://github.com/qwaart/pass_menager_flutter/password_manager.git
 cd password_manager
 ```
 
